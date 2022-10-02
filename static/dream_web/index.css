@@ -4,7 +4,13 @@
 }
 body {
     font-size: 1em;
+    filter: invert(100%);
+    background-color: #000;
 }
+/* double apply invert filter to cancel out effect on images */
+img {
+    filter: invert(100%);
+  }
 textarea {
     font-size: 0.95em;
 }
