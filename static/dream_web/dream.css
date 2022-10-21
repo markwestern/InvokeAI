@@ -1,0 +1,30 @@
+#results {
+    text-align: center;
+    margin: auto;
+    padding-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+#results figure {
+    display: inline-block;
+    margin: 10px;
+    width: 308px;
+}
+
+#results figcaption {
+    font-size: 0.8em;
+    padding: 3px;
+    color: #888;
+    cursor: pointer;
+}
+
+#results img {
+    border-radius: 5px;
+    object-fit: cover;
+}
+
+.fancybox__caption {
+    min-width: 80% !important;
+}

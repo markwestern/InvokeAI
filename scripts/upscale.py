@@ -4,23 +4,29 @@ from os import path, walk
 
 from gooey import Gooey
 from PIL import Image
+from PIL.PngImagePlugin import PngInfo
+
+from get_image_dict import get_image_dict
 
 img_path = 'G:\\Git\\InvokeAI\\outputs\\img-samples\\'
 upscale_path = 'G:\\Git\\InvokeAI\\outputs\\upscaled\\'
+superscale_path = 'G:\\Git\\InvokeAI\\outputs\\superscale\\'
+
 
 class Options:
     img: str
     model: str
 
+
 @Gooey
 def main():
     parser = argparse.ArgumentParser()
-  
+
     parser.add_argument(
-        "--img",
-        type=str,
-        nargs="?",
-        help="image to upscale"
+        "--superscale",
+        dest='superscale',
+        action='store_true',
+        help="superscale upscaled images?"
     )
     parser.add_argument(
         "--img_list",
@@ -37,19 +43,20 @@ def main():
     )
     opt = parser.parse_args()
 
-    if opt.img is None:
-        img_pre_list = []
-        opt.img_list = []
-        for (dirpath, dirnames, filenames) in walk(img_path):
-            img_pre_list.extend(filenames)
-            break
-        for img in img_pre_list:
-            if ".png" in img and "u.png" not in img:
-                opt.img_list.append(img)
+    img_pre_list = []
+    opt.img_list = []
+    from_path = upscale_path if opt.superscale else img_path
+    for (dirpath, dirnames, filenames) in walk(from_path):
+        img_pre_list.extend(filenames)
+        break
+    for img in img_pre_list:
+        if ".png" in img:
+            opt.img_list.append(img)
 
         print(opt.img_list)
-        
+
     realesrgan2x(opt)
+
 
 def get_resampling_mode():
     try:
@@ -62,16 +69,17 @@ def get_resampling_mode():
     except Exception as ex:
         return 1  # 'Lanczos' irrespective of version.
 
+
 def realesrgan2x(opt: Options):
-    if opt.img is not None:
-        img_list = [opt.img]
-    else:
-        img_list = opt.img_list
+    img_list = opt.img_list
+
+    from_path = upscale_path if opt.superscale else img_path
+    to_path = superscale_path if opt.superscale else upscale_path
 
     for img in img_list:
-        input = img_path + img
-        output = upscale_path + img.replace('.png','u.png')    
-    
+        input = from_path + img
+        output = to_path + img.replace('.png', 'u.png')
+
         if not path.exists(output):
             process = subprocess.Popen([
                 "realesrgan-ncnn-vulkan/realesrgan-ncnn-vulkan.exe",
@@ -84,9 +92,18 @@ def realesrgan2x(opt: Options):
             ])
             process.wait()
 
+            metadata = PngInfo()
+            image_dict = get_image_dict(img)
+            if image_dict:
+                for key in image_dict:
+                    metadata.add_text(key, image_dict[key])
+
             final_output = Image.open(output)
-            final_output = final_output.resize((int(final_output.size[0] / 2), int(final_output.size[1] / 2)), get_resampling_mode())
-            final_output.save(output)
+            final_output = final_output.resize(
+                (int(final_output.size[0] / 2), int(final_output.size[1] / 2)), get_resampling_mode())
+
+            final_output.save(output, pnginfo=metadata)
+
 
 if __name__ == "__main__":
     main()
