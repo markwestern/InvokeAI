@@ -28,3 +28,7 @@
 .fancybox__caption {
     min-width: 80% !important;
 }
+
+header {
+    text-align: center;
+}

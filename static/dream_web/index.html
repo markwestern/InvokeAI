@@ -32,10 +32,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@4.0/dist/fancybox.umd.js"></script>
 
   <header>
-    <h1>Stable Diffusion Dream Server</h1>
-    <div id="about">
-      For news and support for this web service, visit our <a href="http://github.com/lstein/stable-diffusion">GitHub
-        site</a>
+    <h1>/diffuse-fork</h1>
+    <div id="about">Stable Diffusion Dream Server</a>
     </div>
   </header>
 
@@ -47,15 +45,13 @@
           <!-- -----PROMPT----- -->
           <fieldset id="txt2img">
             <div class="col">
-              <div id="search-box">
-                <div class="input-group">
-                  <textarea class="form-control" rows="3" id="prompt" name="prompt"></textarea>
-                  <button class="btn btn-primary" type="submit">
-                    <i class="fa fa-picture-o fa-lg"></i> Generate
-                  </button>
-                  <button class="btn btn-secondary" type="button" id="reset-all">
-                    <i class="fa fa-ban fa-lg"></i> Reset</button>
-                </div>
+              <div class="input-group">
+                <textarea class="form-control" rows="3" id="prompt" name="prompt"></textarea>
+                <button class="btn btn-primary" type="submit">
+                  <i class="fa fa-picture-o fa-lg"></i> Generate
+                </button>
+                <button class="btn btn-secondary" type="button" id="reset-all">
+                  <i class="fa fa-ban fa-lg"></i> Reset</button>
               </div>
             </div>
           </fieldset>
@@ -65,32 +61,62 @@
 
             <div class="row">
               <div class="col">
-                <label class="col-form-label" for="iterations">Images to generate:</label>
+                <label class="row-form-label" for="iterations">Iterations:</label>
                 <input class="form-control" value="1" type="number" id="iterations" name="iterations" size="4">
               </div>
 
 
               <div class="col">
-                <label class="col-form-label" for="steps">Steps:</label>
-                <div class="input-group">
-                  <input class="form-control" value="50" type="number" id="steps" name="steps">
-                  <div class="input-group-text">
-                    <input class="form-check-input" type="checkbox" name="progress_images" id="progress_images">
-                    <label class="form-check-label" for="progress_images">&nbsp;Display in-progress images</label>
-                  </div>
-                </div>
+                <label class="row-form-label" for="steps">Steps:</label>
+                <input class="form-control" value="50" type="number" id="steps" name="steps">
               </div>
 
+
               <div class="col">
-                <label class="col-form-label" for="cfg_scale">Cfg Scale:</label>
+                <label class="row-form-label" for="cfg_scale">Guidance:</label>
                 <input class="form-control" value="7.5" type="number" id="cfg_scale" name="cfg_scale" step="any">
               </div>
-            </div>
 
 
-            <div class="row">
               <div class="col">
-                <label class="col-form-label" title="Set to multiple of 64" for="width">Width:</label>
+                <label class="row-form-label" for="sampler_name">Sampler:</label>
+                <select class="form-select" id="sampler_name" name="sampler_name" value="k_lms">
+                  <option value="ddim">DDIM</option>
+                  <option value="plms">PLMS</option>
+                  <option value="k_lms" selected>KLMS</option>
+                  <option value="k_dpm_2">KDPM_2</option>
+                  <option value="k_dpm_2_a">KDPM_2A</option>
+                  <option value="k_euler">KEULER</option>
+                  <option value="k_euler_a">KEULER_A</option>
+                  <option value="k_heun">KHEUN</option>
+                </select>
+              </div>
+
+              <div class="w-100"></div>
+
+              <div class="col">
+                <label class="row-form-label" title="Set to multiple of 64" for="height">Height:</label>
+                <select class="form-select" id="height" name="height" value="512">
+                  <option value="64">64</option>
+                  <option value="128">128</option>
+                  <option value="192">192</option>
+                  <option value="256">256</option>
+                  <option value="320">320</option>
+                  <option value="384">384</option>
+                  <option value="448">448</option>
+                  <option value="512" selected>512</option>
+                  <option value="576">576</option>
+                  <option value="640">640</option>
+                  <option value="704">704</option>
+                  <option value="768">768</option>
+                  <option value="832">832</option>
+                  <option value="896">896</option>
+                  <option value="960">960</option>
+                  <option value="1024">1024</option>
+                </select>
+              </div>
+              <div class="col">
+                <label class="row-form-label" title="Set to multiple of 64" for="width">Width:</label>
                 <select class="form-select" id="width" name="width" value="512">
                   <option value="64">64</option>
                   <option value="128">128</option>
@@ -111,54 +137,25 @@
                 </select>
               </div>
 
-              <div class="col">
-                <label class="col-form-label" title="Set to multiple of 64" for="height">Height:</label>
-                <select class="form-select" id="height" name="height" value="512">
-                  <option value="64">64</option>
-                  <option value="128">128</option>
-                  <option value="192">192</option>
-                  <option value="256">256</option>
-                  <option value="320">320</option>
-                  <option value="384">384</option>
-                  <option value="448">448</option>
-                  <option value="512" selected>512</option>
-                  <option value="576">576</option>
-                  <option value="640">640</option>
-                  <option value="704">704</option>
-                  <option value="768">768</option>
-                  <option value="832">832</option>
-                  <option value="896">896</option>
-                  <option value="960">960</option>
-                  <option value="1024">1024</option>
-                </select>
-              </div>
-
-              <div class="col">
-                <label class="col-form-label" for="sampler_name">Sampler:</label>
-                <div class="input-group">
-                  <select class="form-select" id="sampler_name" name="sampler_name" value="k_lms">
-                    <option value="ddim">DDIM</option>
-                    <option value="plms">PLMS</option>
-                    <option value="k_lms" selected>KLMS</option>
-                    <option value="k_dpm_2">KDPM_2</option>
-                    <option value="k_dpm_2_a">KDPM_2A</option>
-                    <option value="k_euler">KEULER</option>
-                    <option value="k_euler_a">KEULER_A</option>
-                    <option value="k_heun">KHEUN</option>
-                  </select>
-                  <div class="input-group-text">
+              <div class="col-6 g-lg-3">
+                <div id="checkbox-group">
+                  <div class="input-group">
                     <input class="form-check-input" type="checkbox" name="seamless" id="seamless">
-                    <label class="form-check-label" for="seamless">&nbspSeamless circular tiling</label>
+                    <label class="form-check-label" for="seamless">&nbsp;Seamless tiling</label>
+                  </div>
+                  <div class="input-group">
+                    <input class="form-check-input" type="checkbox" name="progress_images" id="progress_images">
+                    <label class="form-check-label" for="progress_images">&nbsp;Progress images</label>
                   </div>
                 </div>
               </div>
-            </div>
+
+              <div class="w-100"></div>
 
 
-            <!-- -----VARIATIONS----- -->
-            <div class="row" id="variations">
+              <!-- -----VARIATIONS----- -->
               <div class="col">
-                <label class="col-form-label" title="Set to -1 for random seed" for="seed">Seed:</label>
+                <label class="row-form-label" title="Set to -1 for random seed" for="seed">Seed:</label>
                 <div class="input-group">
                   <input class="form-control" value="-1" type="number" id="seed" name="seed">
                   <button class="btn btn-primary" type="button" id="reset-seed">&olarr;</button>
@@ -166,28 +163,30 @@
               </div>
 
               <div class="col">
-                <label class="col-form-label"
+                <label class="row-form-label"
                   title="If > 0, generates variations on the initial seed instead of random seeds per iteration. Must be between 0 and 1. Higher values will be more different."
-                  for="variation_amount">Variation amount:</label>
+                  for="variation_amount">Variation:</label>
                 <input class="form-control" value="0" type="number" id="variation_amount" name="variation_amount"
                   step="0.01" min="0" max="1">
                 <small class="form-text text-muted">(0 to disable)</small>
               </div>
 
               <div class="col">
-                <label class="col-form-label"
+                <label class="row-form-label"
                   title="list of variations to apply, in the format `seed:weight,seed:weight,..."
                   for="with_variations">With
                   variations:</label>
                 <input class="form-control" value="" type="text" id="with_variations" name="with_variations">
                 <small class="form-text text-muted">(seed:weight,seed:weight,...)</small>
               </div>
-            </div>
 
-            <!-- -----IMG2IMG----- -->
-            <div class="row" id="img2img">
-              <div class="col">
-                <label class="col-form-label" title="Upload an image to use img2img" for="initimg">Initial
+
+              <div class="w-100"></div>
+
+              <!-- -----IMG2IMG----- -->
+
+              <div class="col-8">
+                <label class="row-form-label" title="Upload an image to use img2img" for="initimg">Initial
                   image:</label>
                 <div class="input-group">
                   <input class="form-control" type="file" id="initimg" name="initimg" accept=".jpg, .jpeg, .png">
@@ -196,13 +195,14 @@
               </div>
 
               <div class="col">
-                <label class="col-form-label" for="strength">Img2Img Strength:</label>
+                <label class="row-form-label" for="strength">Img2Img Strength:</label>
                 <input class="form-control" value="0.75" type="number" id="strength" name="strength" step="0.01"
                   min="0"
                   max="1">
               </div>
             </div>
           </fieldset>
+
 
           <!-- -----GFPGAN----- -->
           <fieldset id="gfpgan">
@@ -214,14 +214,14 @@
               </div>
 
               <div class="col">
-                <label class="col-form-label" title="Strength of the gfpgan (face fixing) algorithm."
+                <label class="row-form-label" title="Strength of the gfpgan (face fixing) algorithm."
                   for="gfpgan_strength">GPFGAN Strength (0 to disable):</label>
                 <input class="form-control" value="0.8" min="0" max="1" type="number" id="gfpgan_strength"
                   name="gfpgan_strength" step="0.05">
               </div>
 
               <div class="col">
-                <label class="col-form-label" title="Upscaling to perform using ESRGAN."
+                <label class="row-form-label" title="Upscaling to perform using ESRGAN."
                   for="upscale_level">Upscaling&nbsp;Level</label>
                 <select id="upscale_level" name="upscale_level" value="">
                   <option value="" selected>None</option>
@@ -231,7 +231,7 @@
               </div>
 
               <div class="col">
-                <label class="col-form-label" title="Strength of the esrgan (upscaling) algorithm."
+                <label class="row-form-label" title="Strength of the esrgan (upscaling) algorithm."
                   for="upscale_strength">Upscale Strength:</label>
                 <input value="0.75" min="0" max="1" type="number" id="upscale_strength" name="upscale_strength"
                   step="0.05">
@@ -239,7 +239,6 @@
             </div>
           </fieldset>
         </form>
-
         <br>
 
         <!-- -----PROGRESS----- -->

@@ -19,34 +19,44 @@ function appendOutput(src, srcUpscaled, seed, config) {
         : config.with_variations;
 
     const baseseed = (config.with_variations || config.variation_amount > 0) ? config.seed : seed;
+    const upscaled = srcUpscaled && srcUpscaled.includes('u.png') ? 'Yes' : 'No';
+    const superscaled = srcUpscaled && srcUpscaled.includes('uu.png') ? 'Yes' : 'No';
+    const seamless = config.seamless ? 'Seamless' : '';
+
+    const slashJoin = (array) => array.join(' / ').replace(/\s\/\s$/, '').replace(/^\s\/\s/, '')
 
     const dataCaptionItems = {
         Prompt: config.prompt,
-        "Seed / Variations": `${baseseed} / ${variations}`,
-        "Steps / Scale / Sampler": `${config.steps} / ${config.cfg_scale} / ${config.sampler_name}`,
-        "Source Image/Strength": `${config.initimg} / ${config.strength}`
+        "Upscaled / Superscaled": slashJoin([upscaled, superscaled]),
+        "Seed / Variations": slashJoin([baseseed, variations]),
+        "Steps / Scale / Sampler": slashJoin([config.steps, config.cfg_scale, config.sampler_name, seamless]),
+        "Source Image / Strength": config.initimg && slashJoin([config.initimg, config.strength])
     }
-    const dataCaption = Object.keys(dataCaptionItems)
+    const dataCaption = jQuery('<ul class="list-group"></ul>')
+    Object.keys(dataCaptionItems)
         .filter(key => dataCaptionItems[key])
-        .map(key => `<li class="list-group-item"><div class="row"><div class="col-2 text-nowrap">${key}:</div><div class="col">${dataCaptionItems[key]}</div></div></li>`).join('');
+        .forEach(key => dataCaption.append(`<li class="list-group-item"><div class="row"><div class="col-2 text-nowrap">${key}:</div><div class="col">${dataCaptionItems[key]}</div></div></li>`))
 
-    const figureContents = `
-    
-        <div class='col'>
-            <a href='${srcUpscaled || src}' data-fancybox='gallery' data-caption='<ul class="list-group">${dataCaption}</ul>'>
-                <img src='${src}'
-                    alt='${config.prompt}'
-                    title='${config.prompt}'
-                    loading='lazy'
-                    width='256'
-                    height='256'>
-            </a>
-            <figcaption id='figcaption-${seed}'>${config.prompt}</figcaption>
-        </div>
-   
-    `;
+
 
     const outputNode = jQuery('<figure></figure>');
+
+    const figureContents = jQuery('<div class="col"></div>');
+
+    const figureWrapper = jQuery(`<a data-fancybox='gallery'></a>`);
+    const figure = jQuery(`<img loading='lazy' width='256' height='256'>`);
+    figure.attr('src', src);
+    figure.attr('alt', config.prompt);
+    figure.attr('title', config.prompt);
+
+    figureWrapper.attr('href', srcUpscaled || src);
+    figureWrapper.attr('data-caption', dataCaption.html());
+    figureWrapper.append(figure);
+
+    const figureCaption = jQuery(`<figcaption id='figcaption-${seed}'>${config.prompt}</figcaption>`);
+
+    figureContents.append(figureWrapper);
+    figureContents.append(figureCaption);
     outputNode.html(figureContents);
     jQuery('#results').prepend(outputNode);
 

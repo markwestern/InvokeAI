@@ -299,7 +299,7 @@ def main_loop(t2i, outdir, prompt_as_dir, parser, infile):
             t2i.prompt2image(image_callback=image_writer, **vars(opt))
 
             if do_grid and len(grid_images) > 0:
-                grid_img   = make_grid(list(grid_images.values()))
+                grid_img = make_grid(list(grid_images.values()))
                 grid_seeds = list(grid_images.keys())
                 first_seed = last_results[0][1]
                 filename = f'{prefix}.{first_seed}.png'
@@ -374,8 +374,7 @@ def write_log_message(results, log_path):
     log_lines = [f'{path}: {prompt}\n' for path, prompt in results]
     for l in log_lines:
         output_cntr += 1
-        print(f'[{output_cntr}] {l}',end='')
-
+        print(f'[{output_cntr}] {l}', end='')
 
     with open(log_path, 'a', encoding='utf-8') as file:
         file.writelines(log_lines)
@@ -499,13 +498,14 @@ def create_argv_parser():
     parser.add_argument(
         '--web',
         dest='web',
+        default=True,
         action='store_true',
         help='Start in web server mode.',
     )
     parser.add_argument(
         '--host',
         type=str,
-        default='127.0.0.1',
+        default='192.168.0.100',
         help='Web server: Host or IP to listen on. Set to 0.0.0.0 to accept traffic from other devices on your network.'
     )
     parser.add_argument(

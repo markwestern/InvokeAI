@@ -105,8 +105,8 @@ class DreamServer(BaseHTTPRequestHandler):
                         urlSuperscaled = url.replace(
                             "img-samples", "superscale").replace(".png", "uu.png")
                         if os.path.exists(urlSuperscaled):
-                            config["urlUpscaled"] = urlSuperscaled
-                        elif os.path.exists(urlUpscaled):
+                            config["urlSuperscaled"] = urlSuperscaled
+                        if os.path.exists(urlUpscaled):
                             config["urlUpscaled"] = urlUpscaled
                         if os.path.exists(url):
                             output.append(config)
