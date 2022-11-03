@@ -1,246 +1,398 @@
-function toBase64(file) {
-    return new Promise((resolve, reject) => {
-        const r = new FileReader();
-        r.readAsDataURL(file);
-        r.onload = () => resolve(r.result);
-        r.onerror = (error) => reject(error);
+const socket = io();
+
+var priorResultsLoadState = {
+  page: 0,
+  pages: 1,
+  per_page: 10,
+  total: 20,
+  offset: 0, // number of items generated since last load
+  loading: false,
+  initialized: false
+};
+
+function loadPriorResults() {
+  // Fix next page by offset
+  let offsetPages = priorResultsLoadState.offset / priorResultsLoadState.per_page;
+  priorResultsLoadState.page += offsetPages;
+  priorResultsLoadState.pages += offsetPages;
+  priorResultsLoadState.total += priorResultsLoadState.offset;
+  priorResultsLoadState.offset = 0;
+
+  if (priorResultsLoadState.loading) {
+    return;
+  }
+
+  if (priorResultsLoadState.page >= priorResultsLoadState.pages) {
+    return; // Nothing more to load
+  }
+
+  // Load
+  priorResultsLoadState.loading = true
+  let url = new URL('/api/images', document.baseURI);
+  url.searchParams.append('page', priorResultsLoadState.initialized ? priorResultsLoadState.page + 1 : priorResultsLoadState.page);
+  url.searchParams.append('per_page', priorResultsLoadState.per_page);
+  fetch(url.href, {
+    method: 'GET',
+    headers: new Headers({ 'content-type': 'application/json' })
+  })
+    .then(response => response.json())
+    .then(data => {
+      priorResultsLoadState.page = data.page;
+      priorResultsLoadState.pages = data.pages;
+      priorResultsLoadState.per_page = data.per_page;
+      priorResultsLoadState.total = data.total;
+
+      data.items.forEach(function (dreamId, index) {
+        let src = 'api/images/' + dreamId;
+        fetch('/api/images/' + dreamId + '/metadata', {
+          method: 'GET',
+          headers: new Headers({ 'content-type': 'application/json' })
+        })
+          .then(response => response.json())
+          .then(metadata => {
+            let seed = metadata.seed || 0; // TODO: Parse old metadata
+            appendOutput(src, seed, metadata, true);
+          });
+      });
+
+      // Load until page is full
+      if (!priorResultsLoadState.initialized) {
+        if (document.body.scrollHeight <= window.innerHeight) {
+          loadPriorResults();
+        }
+      }
+    })
+    .finally(() => {
+      priorResultsLoadState.loading = false;
+      priorResultsLoadState.initialized = true;
     });
 }
 
-function appendOutput(src, srcUpscaled, seed, config) {
+function resetForm() {
+  var form = document.getElementById('generate-form');
+  form.querySelector('fieldset').removeAttribute('disabled');
+}
 
+function initProgress(totalSteps, showProgressImages) {
+  // TODO: Progress could theoretically come from multiple jobs at the same time (in the future)
+  let progressSectionEle = document.querySelector('#progress-section');
+  progressSectionEle.style.display = 'initial';
+  let progressEle = document.querySelector('#progress-bar');
+  progressEle.setAttribute('max', totalSteps);
 
-    const variations = config.variation_amount > 0
-        ? (
-            config.with_variations
-                ? config.with_variations + ','
-                : ''
-        ) + seed + ':' + config.variation_amount
-        : config.with_variations;
+  let progressImageEle = document.querySelector('#progress-image');
+  progressImageEle.src = BLANK_IMAGE_URL;
+  progressImageEle.style.display = showProgressImages ? 'initial' : 'none';
+}
 
-    const baseseed = (config.with_variations || config.variation_amount > 0) ? config.seed : seed;
-    const upscaled = srcUpscaled && srcUpscaled.includes('u.png') ? 'Yes' : 'No';
-    const superscaled = srcUpscaled && srcUpscaled.includes('uu.png') ? 'Yes' : 'No';
-    const seamless = config.seamless ? 'Seamless' : '';
+function setProgress(step, totalSteps, src) {
+  let progressEle = document.querySelector('#progress-bar');
+  progressEle.setAttribute('value', step);
 
-    const slashJoin = (array) => array.join(' / ').replace(/\s\/\s$/, '').replace(/^\s\/\s/, '')
+  if (src) {
+    let progressImageEle = document.querySelector('#progress-image');
+    progressImageEle.src = src;
+  }
+}
 
-    const dataCaptionItems = {
-        Prompt: config.prompt,
-        "Upscaled / Superscaled": slashJoin([upscaled, superscaled]),
-        "Seed / Variations": slashJoin([baseseed, variations]),
-        "Steps / Scale / Sampler": slashJoin([config.steps, config.cfg_scale, config.sampler_name, seamless]),
-        "Source Image / Strength": config.initimg && slashJoin([config.initimg, config.strength])
-    }
-    const dataCaption = jQuery('<ul class="list-group"></ul>')
-    Object.keys(dataCaptionItems)
-        .filter(key => dataCaptionItems[key])
-        .forEach(key => dataCaption.append(`<li class="list-group-item"><div class="row"><div class="col-2 text-nowrap">${key}:</div><div class="col">${dataCaptionItems[key]}</div></div></li>`))
+function resetProgress(hide = true) {
+  if (hide) {
+    let progressSectionEle = document.querySelector('#progress-section');
+    progressSectionEle.style.display = 'none';
+  }
+  let progressEle = document.querySelector('#progress-bar');
+  progressEle.setAttribute('value', 0);
+}
 
+function toBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.readAsDataURL(file);
+    r.onload = () => resolve(r.result);
+    r.onerror = (error) => reject(error);
+  });
+}
 
+function ondragdream(event) {
+  let dream = event.target.dataset.dream;
+  event.dataTransfer.setData("dream", dream);
+}
 
-    const outputNode = jQuery('<figure></figure>');
+function seedClick(event) {
+  // Get element
+  var image = event.target.closest('figure').querySelector('img');
+  var dream = JSON.parse(decodeURIComponent(image.dataset.dream));
 
-    const figureContents = jQuery('<div class="col"></div>');
+  let form = document.querySelector("#generate-form");
+  for (const [k, v] of new FormData(form)) {
+    if (k == 'initimg') { continue; }
+    let formElem = form.querySelector(`*[name=${k}]`);
+    formElem.value = dream[k] !== undefined ? dream[k] : formElem.defaultValue;
+  }
 
-    const figureWrapper = jQuery(`<a data-fancybox='gallery'></a>`);
-    const figure = jQuery(`<img loading='lazy' width='256' height='256'>`);
-    figure.attr('src', src);
-    figure.attr('alt', config.prompt);
-    figure.attr('title', config.prompt);
+  document.querySelector("#seed").value = dream.seed;
+  document.querySelector('#iterations').value = 1; // Reset to 1 iteration since we clicked a single image (not a full job)
 
-    figureWrapper.attr('href', srcUpscaled || src);
-    figureWrapper.attr('data-caption', dataCaption.html());
-    figureWrapper.append(figure);
+  // NOTE: leaving this manual for the user for now - it was very confusing with this behavior
+  // document.querySelector("#with_variations").value = variations || '';
+  // if (document.querySelector("#variation_amount").value <= 0) {
+  //     document.querySelector("#variation_amount").value = 0.2;
+  // }
 
-    const figureCaption = jQuery(`<figcaption id='figcaption-${seed}'>${config.prompt}</figcaption>`);
+  saveFields(document.querySelector("#generate-form"));
+}
 
-    figureContents.append(figureWrapper);
-    figureContents.append(figureCaption);
-    outputNode.html(figureContents);
-    jQuery('#results').prepend(outputNode);
+function appendOutput(src, seed, config, toEnd = false) {
+  let outputNode = document.createElement("figure");
+  let altText = seed.toString() + " | " + config.prompt;
 
-    // Reload image config
-    jQuery(`#figcaption-${seed}`).on('click', (e) => {
-        jQuery('#generate-form input, select, textarea').each((index, input) => {
-            console.log(input)
-            if (input.type !== 'file' && config[input.id]) {
-                const val = isNaN(config[input.id]) ? config[input.id] : parseFloat(config[input.id]).toString(10);
-                console.log(input.id, val)
-                jQuery(`#${input.id}`).val(val);
-            }
-        });
+  // img needs width and height for lazy loading to work
+  // TODO: store the full config in a data attribute on the image?
+  const figureContents = `
+        <a href="${src}" target="_blank">
+            <img src="${src}"
+                 alt="${altText}"
+                 title="${altText}"
+                 loading="lazy"
+                 width="256"
+                 height="256"
+                 draggable="true"
+                 ondragstart="ondragdream(event, this)"
+                 data-dream="${encodeURIComponent(JSON.stringify(config))}"
+                 data-dreamId="${encodeURIComponent(config.dreamId)}">
+        </a>
+        <figcaption onclick="seedClick(event, this)">${seed}</figcaption>
+    `;
 
+  outputNode.innerHTML = figureContents;
 
-        jQuery('#seed').val(baseseed);
-        jQuery('#with_variations').val(variations || '');
-        if (jQuery('#variation_amount').val() <= 0) {
-            jQuery('#variation_amount').val(0.2);
-        }
-
-        saveFields();
-    });
-
-
+  if (toEnd) {
+    document.querySelector("#results").append(outputNode);
+  } else {
+    document.querySelector("#results").prepend(outputNode);
+  }
+  document.querySelector("#no-results-message")?.remove();
 }
 
 function saveFields() {
-    jQuery('#generate-form input, select, textarea').each((index, input) => {
-        if (typeof input.value !== 'object') // Don't save 'file' type
-            localStorage.setItem(input.id, input.value);
-    });
+  jQuery('#generate-form input, select, textarea').each((index, input) => {
+    if (typeof input.value !== 'object') // Don't save 'file' type
+      localStorage.setItem(input.id, input.value);
+  });
 }
 
 function loadFields() {
-    jQuery('#generate-form input, select, textarea').each((index, input) => {
-        if (input.type !== 'file') {
-            const item = localStorage.getItem(input.id);
-            item !== null & typeof item !== 'undefined' && jQuery(`#${input.id}`).val(item);
-        }
-    });
+  jQuery('#generate-form input, select, textarea').each((index, input) => {
+    if (input.type !== 'file') {
+      const item = localStorage.getItem(input.id);
+      item !== null & typeof item !== 'undefined' && jQuery(`#${input.id}`).val(item);
+    }
+  });
 }
 
 function clearFields(form) {
-    localStorage.clear();
-    const prompt = jQuery('#prompt').val();
-    jQuery('#generate-form').trigger("reset");
-    jQuery('#prompt').val(prompt);
+  localStorage.clear();
+  const prompt = jQuery('#prompt').val();
+  jQuery('#generate-form').trigger("reset");
+  jQuery('#prompt').val(prompt);
 }
 
 const BLANK_IMAGE_URL = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"/>';
 async function generateSubmit(form) {
-    const prompt = jQuery('#prompt').val();
-
-    // Convert file data to base64
-    const formData = Object.fromEntries(new FormData(form));
-    formData.initimg_name = formData.initimg.name
-    formData.initimg = formData.initimg.name !== '' ? await toBase64(formData.initimg) : null;
-
-    const strength = formData.strength;
-    const totalSteps = formData.initimg ? Math.floor(strength * formData.steps) : formData.steps;
-
-    const progressSectionEle = jQuery('#progress-section');
-    progressSectionEle.show();
-    const progressEle = jQuery('#progress-bar');
-    const progressImageEle = jQuery('#progress-image');
-    progressImageEle.src = BLANK_IMAGE_URL;
-
-    if (jQuery('#progress_images').is(':checked'))
-        progressImageEle.show();
-    else
-        progressImageEle.hide();
-
-    // Post as JSON, using Fetch streaming to get results
-    fetch(form.action, {
-        method: form.method,
-        body: JSON.stringify(formData),
-    }).then(async (response) => {
-        const reader = response.body.getReader();
-
-        let noOutputs = true;
-        while (true) {
-            let { value, done } = await reader.read();
-            value = new TextDecoder().decode(value);
-            if (done) {
-                progressSectionEle.hide();
-                break;
-            }
-
-            for (let event of value.split('\n').filter(e => e !== '')) {
-                const data = JSON.parse(event);
-                console.log(data)
-                if (data.event === 'result') {
-                    noOutputs = false;
-                    appendOutput(data.url, data.urlUpscaled, data.seed, data.config);
-                    progressEle.width('0%');
-                    progressEle.text('0%');
-
-                }
-                else if (data.event === 'upscaling-started') {
-                    jQuery('processing_cnt').text(data.processed_file_cnt);
-                    jQuery('scaling-inprocess-message').show();
-                }
-                else if (data.event === 'upscaling-done')
-                    jQuery('scaling-inprocess-message').hide();
-                else if (data.event === 'step') {
-                    const percent = (100 * (data.step / totalSteps)).toFixed(0) + '%'
-                    progressEle.width(percent);
-                    progressEle.text(percent);
-                    if (data.url)
-                        jQuery('#progress-image').attr('src', data.url);
-                }
-                else if (data.event === 'canceled') // avoid alerting as if this were an error case
-                    noOutputs = false;
-            }
-        }
-
-        // Re-enable form, remove no-results-message
-        jQuery('fieldset').removeAttr('disabled');
-        jQuery('#prompt').val(prompt);
+  // Convert file data to base64
+  // TODO: Should probably uplaod files with formdata or something, and store them in the backend?
+  let formData = Object.fromEntries(new FormData(form));
+  if (!formData.enable_generate && !formData.enable_init_image) {
+    gen_label = document.querySelector("label[for=enable_generate]").innerHTML;
+    initimg_label = document.querySelector("label[for=enable_init_image]").innerHTML;
+    alert(`Error: one of "${gen_label}" or "${initimg_label}" must be set`);
+  }
 
 
-        if (noOutputs)
-            alert('Error occurred while generating.');
-    });
+  formData.initimg_name = formData.initimg.name
+  formData.initimg = formData.initimg.name !== '' ? await toBase64(formData.initimg) : null;
 
-    // Disable form while generating
-    jQuery('fieldset').attr('disabled', 'disabled');
-    jQuery('#prompt').val(`Generating: '${prompt}'`);
-}
-
-async function fetchRunLog() {
-    try {
-        let response = await fetch('/run_log.json')
-        const data = await response.json();
-        console.log(data)
-        for (let item of data.run_log)
-            appendOutput(item.url, item.urlUpscaled, item.seed, item);
-    } catch (e) {
-        console.error(e);
+  // Evaluate all checkboxes
+  let checkboxes = form.querySelectorAll('input[type=checkbox]');
+  checkboxes.forEach(function (checkbox) {
+    if (checkbox.checked) {
+      formData[checkbox.name] = 'true';
     }
+  });
+
+  let strength = formData.strength;
+  let totalSteps = formData.initimg ? Math.floor(strength * formData.steps) : formData.steps;
+  let showProgressImages = formData.progress_images;
+
+  // Set enabling flags
+
+
+  // Initialize the progress bar
+  initProgress(totalSteps, showProgressImages);
+
+  // POST, use response to listen for events
+  fetch(form.action, {
+    method: form.method,
+    headers: new Headers({ 'content-type': 'application/json' }),
+    body: JSON.stringify(formData),
+  })
+    .then(response => response.json())
+    .then(data => {
+      var jobId = data.jobId;
+      socket.emit('join_room', { 'room': jobId });
+    });
+
+  form.querySelector('fieldset').setAttribute('disabled', '');
 }
 
-jQuery(document).ready(async () => {
-    jQuery('#progress-section').hide();
-    jQuery('#scaling-inprocess-message').hide();
+function fieldSetEnableChecked(event) {
+  cb = event.target;
+  fields = cb.closest('fieldset');
+  fields.disabled = !cb.checked;
+}
 
-    jQuery('#prompt').on('keydown', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey)
-            generateSubmit(e.target.form);
-    });
+// Socket listeners
+socket.on('job_started', (data) => { })
 
-    jQuery('#generate-form').on('submit', (e) => {
-        e.preventDefault();
-        generateSubmit(e.target);
-    });
+socket.on('dream_result', (data) => {
+  var jobId = data.jobId;
+  var dreamId = data.dreamId;
+  var dreamRequest = data.dreamRequest;
+  var src = 'api/images/' + dreamId;
 
-    jQuery('#generate-form').on('change', (e) => saveFields(e.target.form));
+  priorResultsLoadState.offset += 1;
+  appendOutput(src, dreamRequest.seed, dreamRequest);
 
-    jQuery('#reset-seed').on('click', (e) => {
-        jQuery('#seed').val(-1);
-        saveFields(e.target.form);
-    });
-
-    jQuery('#reset-all').on('click', (e) => clearFields(e.target.form));
-
-    jQuery('#remove-image').on('click', (e) => {
-        initimg.value = null;
-    });
-
-    loadFields();
-
-    jQuery('#cancel-button')
-        .on('click', () => fetch('/cancel')
-            .catch(e => console.error(e)));
-
-    jQuery(document.documentElement).on('keydown', (e) => {
-        if (e.key === 'Escape')
-            fetch('/cancel').catch(err => console.error(err));
-    });
-
-    if (!config.gfpgan_model_exists)
-        jQuery('#gfpgan').hide();
-
-    await fetchRunLog()
+  resetProgress(false);
 })
 
+socket.on('dream_progress', (data) => {
+  // TODO: it'd be nice if we could get a seed reported here, but the generator would need to be updated
+  var step = data.step;
+  var totalSteps = data.totalSteps;
+  var jobId = data.jobId;
+  var dreamId = data.dreamId;
+
+  var progressType = data.progressType
+  if (progressType === 'GENERATION') {
+    var src = data.hasProgressImage ?
+      'api/intermediates/' + dreamId + '/' + step
+      : null;
+    setProgress(step, totalSteps, src);
+  } else if (progressType === 'UPSCALING_STARTED') {
+    // step and totalSteps are used for upscale count on this message
+    document.getElementById("processing_cnt").textContent = step;
+    document.getElementById("processing_total").textContent = totalSteps;
+    document.getElementById("scaling-inprocess-message").style.display = "block";
+  } else if (progressType == 'UPSCALING_DONE') {
+    document.getElementById("scaling-inprocess-message").style.display = "none";
+  }
+})
+
+socket.on('job_canceled', (data) => {
+  resetForm();
+  resetProgress();
+})
+
+socket.on('job_done', (data) => {
+  jobId = data.jobId
+  socket.emit('leave_room', { 'room': jobId });
+
+  resetForm();
+  resetProgress();
+})
+
+window.onload = async () => {
+  document.querySelector("#prompt").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      const form = e.target.form;
+      generateSubmit(form);
+    }
+  });
+
+  jQuery('#generate-form').on('submit', (e) => {
+    e.preventDefault();
+    generateSubmit(e.target);
+  });
+
+  jQuery('#generate-form').on('change', (e) => saveFields(e.target.form));
+
+  jQuery('#reset-seed').on('click', (e) => {
+    jQuery('#seed').val(-1);
+    saveFields(e.target.form);
+  });
+  document.querySelector("#reset-seed").addEventListener('click', (e) => {
+    document.querySelector("#seed").value = 0;
+    saveFields(e.target.form);
+  });
+  document.querySelector("#reset-all").addEventListener('click', (e) => {
+    clearFields(e.target.form);
+  });
+  document.querySelector("#remove-image").addEventListener('click', (e) => {
+    initimg.value = null;
+  });
+  loadFields(document.querySelector("#generate-form"));
+
+  document.querySelector('#cancel-button').addEventListener('click', () => {
+    fetch('/api/cancel').catch(e => {
+      console.error(e);
+    });
+  });
+  document.documentElement.addEventListener('keydown', (e) => {
+    if (e.key === "Escape")
+      fetch('/api/cancel').catch(err => {
+        console.error(err);
+      });
+  });
+
+  if (!config.gfpgan_model_exists) {
+    document.querySelector("#gfpgan").style.display = 'none';
+  }
+
+  window.addEventListener("scroll", () => {
+    if ((window.innerHeight + window.pageYOffset) >= document.body.offsetHeight) {
+      loadPriorResults();
+    }
+  });
+
+
+
+  // Enable/disable forms by checkboxes
+  document.querySelectorAll("legend > input[type=checkbox]").forEach(function (cb) {
+    cb.addEventListener('change', fieldSetEnableChecked);
+    fieldSetEnableChecked({ target: cb })
+  });
+
+
+  // Load some of the previous results
+  loadPriorResults();
+
+  // Image drop/upload WIP
+  /*
+  let drop = document.getElementById('dropper');
+  function ondrop(event) {
+    let dreamData = event.dataTransfer.getData('dream');
+    if (dreamData) {
+      var dream = JSON.parse(decodeURIComponent(dreamData));
+      alert(dream.dreamId);
+    }
+  };
+
+  function ondragenter(event) {
+    event.preventDefault();
+  };
+
+  function ondragover(event) {
+    event.preventDefault();
+  };
+
+  function ondragleave(event) {
+
+  }
+
+  drop.addEventListener('drop', ondrop);
+  drop.addEventListener('dragenter', ondragenter);
+  drop.addEventListener('dragover', ondragover);
+  drop.addEventListener('dragleave', ondragleave);
+  */
+};
